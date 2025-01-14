@@ -645,10 +645,17 @@ class Application(tk.Frame):
         self.master.after(0, lambda: messagebox.showinfo(title, message))
 
     def toggle_log_visibility(self):
-        if self.show_log_var.get():
-            self.paned.add(self.log_frame, weight=1)
-        else:
-            self.paned.forget(self.log_frame)
+        try:
+            if self.show_log_var.get():
+                self.paned.add(self.log_frame, weight=1)
+            else:
+                # Check if log_frame is currently managed by paned window
+                paned_slaves = self.paned.panes()
+                if self.log_frame in paned_slaves:
+                    self.paned.forget(self.log_frame)
+        except tk.TclError:
+            # Ignore any Tcl errors during initialization
+            pass
 
     def log_operation(self, message):
         """Add a message to the log with timestamp."""
