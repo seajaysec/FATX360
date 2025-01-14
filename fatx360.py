@@ -10,20 +10,23 @@ def is_fatx_compatible(name):
     return len(name) <= 42 and all(char.isalnum() or char in "()." for char in name)
 
 
-def make_fatx_compatible(name):
+def make_fatx_compatible(name, is_directory=False):
     filename, extension = os.path.splitext(name)
+    # Remove invalid characters but keep spaces
     filename = re.sub(r"[^\w\s()]", "", filename)
-    words = filename.split()
-    if words:
-        camel_case_name = words[0].lower()
-        for word in words[1:]:
-            camel_case_name += word.capitalize()
+
+    if is_directory:
+        # For directories: Keep beginning, truncate from end if needed
+        max_length = 42 - len(extension)
+        if len(filename) > max_length:
+            filename = filename[:max_length]
     else:
-        camel_case_name = ""
-    max_filename_length = 42 - len(extension)
-    if len(camel_case_name) > max_filename_length:
-        camel_case_name = camel_case_name[:max_filename_length]
-    return camel_case_name + extension
+        # For files: Keep end, truncate from beginning if needed
+        max_length = 42 - len(extension)
+        if len(filename) > max_length:
+            filename = filename[-max_length:]
+
+    return filename + extension
 
 
 class Application(tk.Frame):
@@ -308,7 +311,7 @@ class Application(tk.Frame):
         current_depth=0,
     ):
         new_dir_name = (
-            make_fatx_compatible(os.path.basename(src_dir))
+            make_fatx_compatible(os.path.basename(src_dir), is_directory=True)
             if rename_top_level
             or (rename_subfolders and current_depth < self.depth_var.get())
             else os.path.basename(src_dir)
@@ -334,7 +337,9 @@ class Application(tk.Frame):
                 and current_depth < self.depth_var.get()
                 and root != src_dir
             ):
-                new_name = make_fatx_compatible(os.path.basename(root))
+                new_name = make_fatx_compatible(
+                    os.path.basename(root), is_directory=True
+                )
                 if new_name != os.path.basename(root):
                     new_root = os.path.join(os.path.dirname(new_root), new_name)
                     if not is_copy_mode:
@@ -353,7 +358,7 @@ class Application(tk.Frame):
 
     def process_file(self, src_file, dest_dir, rename_file, is_copy_mode):
         new_name = (
-            make_fatx_compatible(os.path.basename(src_file))
+            make_fatx_compatible(os.path.basename(src_file), is_directory=False)
             if rename_file
             else os.path.basename(src_file)
         )
