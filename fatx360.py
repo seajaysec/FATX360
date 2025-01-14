@@ -1,11 +1,52 @@
-import multiprocessing
-import os
-import re
-import shutil
-import threading
-import tkinter as tk
-from concurrent.futures import ThreadPoolExecutor
-from tkinter import filedialog, messagebox, ttk
+try:
+    import tkinter as tk
+    from tkinter import filedialog, messagebox, ttk
+except ImportError as e:
+    import platform
+    import sys
+
+    def show_tkinter_installation_guide():
+        system = platform.system().lower()
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+
+        guides = {
+            "darwin": f"""
+Tkinter is not installed. To install it on macOS:
+
+1. Using Homebrew (recommended):
+   brew install python-tk@{python_version}
+
+2. Or download Python from python.org which includes Tkinter
+   https://www.python.org/downloads/
+""",
+            "linux": """
+Tkinter is not installed. To install it on Linux:
+
+For Ubuntu/Debian:
+   sudo apt-get update
+   sudo apt-get install python3-tk
+
+For Fedora:
+   sudo dnf install python3-tkinter
+
+For Other Distributions:
+   Please check your package manager for 'python3-tk' or 'tkinter'
+""",
+            "windows": """
+Tkinter should be included with Python on Windows.
+Try reinstalling Python from python.org and ensure you
+don't uncheck tcl/tk during installation.
+https://www.python.org/downloads/
+""",
+        }
+
+        guide = guides.get(system, "Please install Tkinter for your operating system")
+        print("\nError: Unable to start FATX360 - Missing Tkinter\n")
+        print(guide)
+        print("\nAfter installing, try running this script again.\n")
+        sys.exit(1)
+
+    show_tkinter_installation_guide()
 
 # Use 75% of available cores (minimum 2) to avoid overwhelming the system
 CPU_COUNT = max(2, int(multiprocessing.cpu_count() * 0.75))
