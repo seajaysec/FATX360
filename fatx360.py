@@ -348,7 +348,7 @@ class Application(tk.Frame):
             messagebox.showwarning("No Selection", "Please select items to rename.")
             return
 
-        # Ask for confirmation if modifying in place
+        # Set destination based on operation mode
         if self.operation_mode.get() == "inplace":
             if not messagebox.askyesno(
                 "Confirm Operation",
@@ -357,12 +357,14 @@ class Application(tk.Frame):
                 return
             dest_dir = self.directory
         else:
+            # Only ask for destination directory in copy mode
             dest_dir = filedialog.askdirectory(
                 title="Select Destination Folder for Renamed Items"
             )
             if not dest_dir:
                 return
 
+        # Start the operation
         self.progress["value"] = 0
         self.rename_button["state"] = "disabled"
         self.cancel_button["state"] = "normal"
@@ -372,6 +374,7 @@ class Application(tk.Frame):
         self.processed_items = 0
         self.update_progress_label()
 
+        # Start the operation in a new thread
         thread = threading.Thread(
             target=self.rename_items_thread, args=(selected_items, dest_dir)
         )
@@ -389,6 +392,9 @@ class Application(tk.Frame):
         return total
 
     def rename_items_thread(self, items, dest_dir):
+        # Enable cancel button only after thread starts
+        self.master.after(0, lambda: self.cancel_button.configure(state="normal"))
+
         is_copy_mode = self.operation_mode.get() == "copy"
 
         if is_copy_mode:
@@ -600,8 +606,8 @@ class Application(tk.Frame):
         self.reset_interface()
 
     def finish_operation(self):
-        self.rename_button["state"] = "normal"
-        self.cancel_button["state"] = "disabled"
+        self.master.after(0, lambda: self.rename_button.configure(state="normal"))
+        self.master.after(0, lambda: self.cancel_button.configure(state="disabled"))
         self.cancel_flag = False
         self.reset_interface()
 
