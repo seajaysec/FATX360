@@ -348,21 +348,28 @@ class Application(tk.Frame):
             messagebox.showwarning("No Selection", "Please select items to rename.")
             return
 
-        # Set destination based on operation mode
-        dest_dir = self.directory  # Default to current directory for in-place mode
+        # Verify we have a source directory
+        if not self.directory:
+            messagebox.showerror("Error", "Please select a source directory first.")
+            return
 
-        if self.operation_mode.get() == "copy":
-            # Only ask for destination directory in copy mode
-            dest_dir = filedialog.askdirectory(
-                title="Select Destination Folder for Renamed Items"
-            )
-            if not dest_dir:  # User cancelled directory selection
-                return
-        else:  # in-place mode
+        # For in-place mode, just confirm and proceed
+        if self.operation_mode.get() == "inplace":
             if not messagebox.askyesno(
                 "Confirm Operation",
                 "This will modify the files in place. Are you sure you want to continue?",
             ):
+                return
+            dest_dir = self.directory
+        else:
+            # For copy mode, use the RENAMED subfolder in source directory
+            dest_dir = os.path.join(self.directory, "RENAMED")
+            try:
+                os.makedirs(dest_dir, exist_ok=True)
+            except PermissionError:
+                messagebox.showerror(
+                    "Permission Error", "Cannot create RENAMED directory."
+                )
                 return
 
         # Start the operation
