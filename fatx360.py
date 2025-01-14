@@ -179,15 +179,25 @@ class Application(tk.Frame):
         )
         self.select_all_button.pack(side=tk.LEFT)
 
-        # Add log toggle button
+        # Add log toggle button and clear button
+        log_controls = ttk.Frame(list_top_frame)
+        log_controls.pack(side=tk.RIGHT)
+
         self.show_log_var = tk.BooleanVar(value=False)
         self.show_log_button = ttk.Checkbutton(
-            list_top_frame,
+            log_controls,
             text="Show Log",
             variable=self.show_log_var,
             command=self.toggle_log_visibility,
         )
-        self.show_log_button.pack(side=tk.RIGHT)
+        self.show_log_button.pack(side=tk.LEFT)
+
+        self.clear_log_button = ttk.Button(
+            log_controls,
+            text="Clear Log",
+            command=lambda: self.log_text.delete(1.0, tk.END),
+        )
+        self.clear_log_button.pack(side=tk.LEFT, padx=(5, 0))
 
         # Create paned window to allow resizing between listbox and log
         self.paned = ttk.PanedWindow(list_frame, orient=tk.VERTICAL)
@@ -643,10 +653,6 @@ class Application(tk.Frame):
         # Reset counters
         self.total_items = 0
         self.processed_items = 0
-
-        # Clear log
-        if hasattr(self, "log_text"):
-            self.log_text.delete(1.0, tk.END)
 
     def show_error(self, title, message):
         self.master.after(0, lambda: messagebox.showerror(title, message))
