@@ -1,9 +1,14 @@
+import multiprocessing
 import os
 import re
 import shutil
 import threading
 import tkinter as tk
+from concurrent.futures import ThreadPoolExecutor
 from tkinter import filedialog, messagebox, ttk
+
+# Use 75% of available cores (minimum 2) to avoid overwhelming the system
+CPU_COUNT = max(2, int(multiprocessing.cpu_count() * 0.75))
 
 
 def is_fatx_compatible(name):
@@ -278,30 +283,62 @@ class Application(tk.Frame):
         else:
             renamed_dir = dest_dir
 
+        # Create a list of work items
+        work_items = []
         for item in items:
-            if self.cancel_flag:
-                return
-            try:
-                full_path = os.path.join(self.directory, item)
-                if os.path.isdir(full_path):
-                    self.process_directory(
-                        full_path,
-                        renamed_dir,
-                        self.top_level_var.get(),
-                        self.subfolders_var.get(),
-                        self.files_var.get(),
-                        is_copy_mode,
+            full_path = os.path.join(self.directory, item)
+            work_items.append(
+                {
+                    "path": full_path,
+                    "is_dir": os.path.isdir(full_path),
+                    "dest_dir": renamed_dir,
+                    "rename_top_level": self.top_level_var.get(),
+                    "rename_subfolders": self.subfolders_var.get(),
+                    "rename_files": self.files_var.get(),
+                    "is_copy_mode": is_copy_mode,
+                }
+            )
+
+        # Process items in parallel using a thread pool
+        with ThreadPoolExecutor(max_workers=CPU_COUNT) as executor:
+            futures = []
+            for work in work_items:
+                if self.cancel_flag:
+                    break
+
+                if work["is_dir"]:
+                    future = executor.submit(
+                        self.process_directory,
+                        work["path"],
+                        work["dest_dir"],
+                        work["rename_top_level"],
+                        work["rename_subfolders"],
+                        work["rename_files"],
+                        work["is_copy_mode"],
                     )
                 else:
-                    self.process_file(
-                        full_path, renamed_dir, self.files_var.get(), is_copy_mode
+                    future = executor.submit(
+                        self.process_file,
+                        work["path"],
+                        work["dest_dir"],
+                        work["rename_files"],
+                        work["is_copy_mode"],
                     )
-            except PermissionError:
-                self.show_error("Permission Error", f"Cannot access {item}.")
-            except shutil.Error as e:
-                self.show_error("Copy Error", f"Error copying {item}: {str(e)}")
-            except OSError as e:
-                self.show_error("OS Error", f"Error processing {item}: {str(e)}")
+                futures.append(future)
+
+            # Wait for all tasks to complete
+            for future in futures:
+                try:
+                    if self.cancel_flag:
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
+                    future.result()  # This will raise any exceptions that occurred
+                except PermissionError as e:
+                    self.show_error("Permission Error", str(e))
+                except shutil.Error as e:
+                    self.show_error("Copy Error", str(e))
+                except OSError as e:
+                    self.show_error("OS Error", str(e))
 
         if not self.cancel_flag:
             msg = (
@@ -322,57 +359,81 @@ class Application(tk.Frame):
         is_copy_mode,
         current_depth=0,
     ):
-        # First check if renaming is actually needed
-        orig_name = os.path.basename(src_dir)
-        new_dir_name = (
-            make_fatx_compatible(orig_name, is_directory=True)
-            if rename_top_level
-            or (rename_subfolders and current_depth < self.depth_var.get())
-            else orig_name
-        )
-
-        # Only use the new name if it's different and needs to be changed
-        needs_rename = not is_fatx_compatible(orig_name)
-        final_name = new_dir_name if needs_rename else orig_name
-        new_dir_path = os.path.join(dest_parent_dir, final_name)
-
-        if is_copy_mode:
-            os.makedirs(new_dir_path, exist_ok=True)
-        elif needs_rename:  # Only rename if necessary
-            os.rename(src_dir, new_dir_path)
-            src_dir = new_dir_path
-
-        for root, dirs, files in os.walk(src_dir):
-            if self.cancel_flag:
-                return
-            rel_path = os.path.relpath(root, src_dir)
-            new_root = os.path.join(
-                new_dir_path if is_copy_mode else dest_parent_dir, rel_path
+        try:
+            # First check if renaming is actually needed
+            orig_name = os.path.basename(src_dir)
+            new_dir_name = (
+                make_fatx_compatible(orig_name, is_directory=True)
+                if rename_top_level
+                or (rename_subfolders and current_depth < self.depth_var.get())
+                else orig_name
             )
 
-            if (
-                rename_subfolders
-                and current_depth < self.depth_var.get()
-                and root != src_dir
-            ):
-                new_name = make_fatx_compatible(
-                    os.path.basename(root), is_directory=True
-                )
-                if new_name != os.path.basename(root):
-                    new_root = os.path.join(os.path.dirname(new_root), new_name)
-                    if not is_copy_mode:
-                        os.rename(root, new_root)
+            # Only use the new name if it's different and needs to be changed
+            needs_rename = not is_fatx_compatible(orig_name)
+            final_name = new_dir_name if needs_rename else orig_name
+            new_dir_path = os.path.join(dest_parent_dir, final_name)
 
             if is_copy_mode:
-                os.makedirs(new_root, exist_ok=True)
+                os.makedirs(new_dir_path, exist_ok=True)
+            elif needs_rename:  # Only rename if necessary
+                os.rename(src_dir, new_dir_path)
+                src_dir = new_dir_path
 
-            for file in files:
-                if self.cancel_flag:
-                    return
-                src_file = os.path.join(root, file)
-                self.process_file(src_file, new_root, rename_files, is_copy_mode)
+            # Process directory contents
+            with ThreadPoolExecutor(max_workers=CPU_COUNT) as executor:
+                futures = []
 
-            break  # Only process top level
+                for root, dirs, files in os.walk(src_dir):
+                    if self.cancel_flag:
+                        return
+
+                    rel_path = os.path.relpath(root, src_dir)
+                    new_root = os.path.join(
+                        new_dir_path if is_copy_mode else dest_parent_dir, rel_path
+                    )
+
+                    if (
+                        rename_subfolders
+                        and current_depth < self.depth_var.get()
+                        and root != src_dir
+                    ):
+                        new_name = make_fatx_compatible(
+                            os.path.basename(root), is_directory=True
+                        )
+                        if new_name != os.path.basename(root):
+                            new_root = os.path.join(os.path.dirname(new_root), new_name)
+                            if not is_copy_mode:
+                                os.rename(root, new_root)
+
+                    if is_copy_mode:
+                        os.makedirs(new_root, exist_ok=True)
+
+                    # Process files in parallel
+                    for file in files:
+                        if self.cancel_flag:
+                            return
+                        src_file = os.path.join(root, file)
+                        future = executor.submit(
+                            self.process_file,
+                            src_file,
+                            new_root,
+                            rename_files,
+                            is_copy_mode,
+                        )
+                        futures.append(future)
+
+                    break  # Only process top level
+
+                # Wait for all file operations to complete
+                for future in futures:
+                    if self.cancel_flag:
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
+                    future.result()
+
+        except Exception as e:
+            self.show_error("Directory Processing Error", str(e))
 
     def process_file(self, src_file, dest_dir, rename_file, is_copy_mode):
         orig_name = os.path.basename(src_file)
