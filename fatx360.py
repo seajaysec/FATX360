@@ -171,13 +171,45 @@ class Application(tk.Frame):
         list_frame = ttk.Frame(self)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        self.select_all_button = ttk.Button(
-            list_frame, text="Select All", command=self.toggle_select_all
-        )
-        self.select_all_button.pack(side=tk.TOP, anchor=tk.W)
+        list_top_frame = ttk.Frame(list_frame)
+        list_top_frame.pack(fill=tk.X)
 
-        self.listbox = tk.Listbox(list_frame, selectmode=tk.MULTIPLE)
-        self.listbox.pack(fill=tk.BOTH, expand=True)
+        self.select_all_button = ttk.Button(
+            list_top_frame, text="Select All", command=self.toggle_select_all
+        )
+        self.select_all_button.pack(side=tk.LEFT)
+
+        # Add log toggle button
+        self.show_log_var = tk.BooleanVar(value=False)
+        self.show_log_button = ttk.Checkbutton(
+            list_top_frame,
+            text="Show Log",
+            variable=self.show_log_var,
+            command=self.toggle_log_visibility,
+        )
+        self.show_log_button.pack(side=tk.RIGHT)
+
+        # Create paned window to allow resizing between listbox and log
+        self.paned = ttk.PanedWindow(list_frame, orient=tk.VERTICAL)
+        self.paned.pack(fill=tk.BOTH, expand=True)
+
+        # Add listbox to paned window
+        self.listbox = tk.Listbox(self.paned, selectmode=tk.MULTIPLE)
+        self.paned.add(self.listbox, weight=1)
+
+        # Create log frame
+        self.log_frame = ttk.Frame(self.paned)
+
+        # Add log text widget with scrollbar
+        self.log_text = tk.Text(self.log_frame, height=6, wrap=tk.WORD)
+        log_scrollbar = ttk.Scrollbar(self.log_frame, command=self.log_text.yview)
+        self.log_text.configure(yscrollcommand=log_scrollbar.set)
+
+        self.log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        log_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Initially hide log
+        self.toggle_log_visibility()
 
         options_frame = ttk.Frame(self)
         options_frame.pack(fill=tk.X, padx=10, pady=5)
@@ -521,6 +553,9 @@ class Application(tk.Frame):
                         break
                     future.result()
 
+            if needs_rename:
+                self.log_operation(f"Directory: {orig_name} → {final_name}")
+
         except Exception as e:
             self.show_error("Directory Processing Error", str(e))
 
@@ -544,6 +579,11 @@ class Application(tk.Frame):
 
         self.processed_items += 1
         self.update_progress()
+
+        if needs_rename:
+            self.log_operation(f"File: {orig_name} → {final_name}")
+        elif is_copy_mode:
+            self.log_operation(f"Copying: {orig_name}")
 
     def update_progress(self):
         progress_value = (self.processed_items / self.total_items) * 100
@@ -591,6 +631,10 @@ class Application(tk.Frame):
         self.total_items = 0
         self.processed_items = 0
 
+        # Clear log
+        if hasattr(self, "log_text"):
+            self.log_text.delete(1.0, tk.END)
+
     def show_error(self, title, message):
         self.master.after(0, lambda: messagebox.showerror(title, message))
 
@@ -599,6 +643,25 @@ class Application(tk.Frame):
 
     def show_info(self, title, message):
         self.master.after(0, lambda: messagebox.showinfo(title, message))
+
+    def toggle_log_visibility(self):
+        if self.show_log_var.get():
+            self.paned.add(self.log_frame, weight=1)
+        else:
+            self.paned.forget(self.log_frame)
+
+    def log_operation(self, message):
+        """Add a message to the log with timestamp."""
+        if not hasattr(self, "log_text"):
+            return
+
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.master.after(
+            0, lambda: self.log_text.insert(tk.END, f"[{timestamp}] {message}\n")
+        )
+        self.master.after(0, lambda: self.log_text.see(tk.END))
 
 
 root = tk.Tk()
