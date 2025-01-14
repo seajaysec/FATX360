@@ -118,7 +118,12 @@ class Application(tk.Frame):
         max_depth = 0
         base_depth = directory.rstrip(os.sep).count(os.sep)
 
-        for root, dirs, files in os.walk(directory):
+        for root, dirs, _ in os.walk(directory):
+            # Remove ._ directories and other hidden directories from consideration
+            dirs[:] = [
+                d for d in dirs if not d.startswith("._") and not d.startswith(".")
+            ]
+
             if not dirs:  # Skip if no subdirectories
                 continue
             current_depth = root.count(os.sep) - base_depth
@@ -254,23 +259,27 @@ class Application(tk.Frame):
             self.directory = selected_dir
             self.dir_entry.delete(0, tk.END)
             self.dir_entry.insert(0, self.directory)
-
-            # Update max depth based on directory structure
-            new_max_depth = self.get_directory_max_depth(self.directory)
-            self.max_depth = new_max_depth
-
-            # Update the depth slider
-            self.depth_slider.configure(to=self.max_depth)
-            self.depth_var.set(min(self.depth_var.get(), self.max_depth))
-            self.update_depth_label()
-
-            self.update_listbox()
+            self.update_listbox()  # This will now handle depth calculation and UI updates
 
     def update_listbox(self):
         self.listbox.delete(0, tk.END)
         try:
-            for item in os.listdir(self.directory):
+            # Update max depth first
+            new_max_depth = self.get_directory_max_depth(self.directory)
+            self.max_depth = new_max_depth
+            self.depth_slider.configure(to=self.max_depth)
+            self.depth_var.set(min(self.depth_var.get(), self.max_depth))
+            self.update_depth_label()
+
+            # Then populate listbox, ignoring ._ files
+            items = [
+                item
+                for item in os.listdir(self.directory)
+                if not item.startswith("._") and not item.startswith(".")
+            ]
+            for item in sorted(items):
                 self.listbox.insert(tk.END, item)
+
             self.all_selected = False
             self.select_all_button.config(text="Select All")
         except PermissionError:
