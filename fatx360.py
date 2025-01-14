@@ -48,6 +48,14 @@ https://www.python.org/downloads/
 
     show_tkinter_installation_guide()
 
+# Add back the required imports
+import multiprocessing
+import os
+import re
+import shutil
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
 # Use 75% of available cores (minimum 2) to avoid overwhelming the system
 CPU_COUNT = max(2, int(multiprocessing.cpu_count() * 0.75))
 
