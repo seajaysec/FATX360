@@ -99,7 +99,7 @@ class Application(tk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
         self.master = master
-        self.master.title("FATX360 v1.4")
+        self.master.title("FATX360 v1.4")  # Update for major features
         self.master.geometry("500x550")
         self.pack(fill=tk.BOTH, expand=True)
         self.all_selected = False
