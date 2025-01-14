@@ -106,8 +106,27 @@ class Application(tk.Frame):
         self.total_items = 0
         self.processed_items = 0
         self.cancel_flag = False
-        self.max_depth = 10  # Maximum depth for the slider
+        self.directory = None
+        self.max_depth = 1  # Start with a default of 1
         self.create_widgets()
+
+    def get_directory_max_depth(self, directory):
+        """Calculate the maximum depth of the directory structure."""
+        if not directory or not os.path.exists(directory):
+            return 1
+
+        max_depth = 0
+        base_depth = directory.rstrip(os.sep).count(os.sep)
+
+        for root, dirs, files in os.walk(directory):
+            if not dirs:  # Skip if no subdirectories
+                continue
+            current_depth = root.count(os.sep) - base_depth
+            max_depth = max(max_depth, current_depth + 1)
+            if max_depth > 99:  # Set a reasonable upper limit
+                return 99
+
+        return max(1, max_depth)  # Ensure minimum depth of 1
 
     def create_widgets(self):
         self.create_menu()
@@ -230,10 +249,22 @@ class Application(tk.Frame):
         menubar.add_cascade(label="File", menu=file_menu)
 
     def select_directory(self):
-        self.directory = filedialog.askdirectory()
-        self.dir_entry.delete(0, tk.END)
-        self.dir_entry.insert(0, self.directory)
-        self.update_listbox()
+        selected_dir = filedialog.askdirectory()
+        if selected_dir:
+            self.directory = selected_dir
+            self.dir_entry.delete(0, tk.END)
+            self.dir_entry.insert(0, self.directory)
+
+            # Update max depth based on directory structure
+            new_max_depth = self.get_directory_max_depth(self.directory)
+            self.max_depth = new_max_depth
+
+            # Update the depth slider
+            self.depth_slider.configure(to=self.max_depth)
+            self.depth_var.set(min(self.depth_var.get(), self.max_depth))
+            self.update_depth_label()
+
+            self.update_listbox()
 
     def update_listbox(self):
         self.listbox.delete(0, tk.END)
