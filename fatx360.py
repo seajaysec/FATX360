@@ -349,25 +349,25 @@ class Application(tk.Frame):
             return
 
         # Set destination based on operation mode
-        if self.operation_mode.get() == "inplace":
+        dest_dir = self.directory  # Default to current directory for in-place mode
+
+        if self.operation_mode.get() == "copy":
+            # Only ask for destination directory in copy mode
+            dest_dir = filedialog.askdirectory(
+                title="Select Destination Folder for Renamed Items"
+            )
+            if not dest_dir:  # User cancelled directory selection
+                return
+        else:  # in-place mode
             if not messagebox.askyesno(
                 "Confirm Operation",
                 "This will modify the files in place. Are you sure you want to continue?",
             ):
                 return
-            dest_dir = self.directory
-        else:
-            # Only ask for destination directory in copy mode
-            dest_dir = filedialog.askdirectory(
-                title="Select Destination Folder for Renamed Items"
-            )
-            if not dest_dir:
-                return
 
         # Start the operation
         self.progress["value"] = 0
         self.rename_button["state"] = "disabled"
-        self.cancel_button["state"] = "normal"
         self.cancel_flag = False
 
         self.total_items = self.count_total_items(selected_items)
