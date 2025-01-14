@@ -7,7 +7,19 @@ from tkinter import filedialog, messagebox, ttk
 
 
 def is_fatx_compatible(name):
-    return len(name) <= 42 and all(char.isalnum() or char in "()." for char in name)
+    """Check if a filename is FATX compatible without changing it."""
+    # Check length (including extension)
+    if len(name) > 42:
+        return False
+
+    # Check for invalid characters
+    valid_chars = set(
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789()."
+    )
+    if not all(char in valid_chars or char.isspace() for char in name):
+        return False
+
+    return True
 
 
 def make_fatx_compatible(name, is_directory=False):
@@ -310,17 +322,23 @@ class Application(tk.Frame):
         is_copy_mode,
         current_depth=0,
     ):
+        # First check if renaming is actually needed
+        orig_name = os.path.basename(src_dir)
         new_dir_name = (
-            make_fatx_compatible(os.path.basename(src_dir), is_directory=True)
+            make_fatx_compatible(orig_name, is_directory=True)
             if rename_top_level
             or (rename_subfolders and current_depth < self.depth_var.get())
-            else os.path.basename(src_dir)
+            else orig_name
         )
-        new_dir_path = os.path.join(dest_parent_dir, new_dir_name)
+
+        # Only use the new name if it's different and needs to be changed
+        needs_rename = not is_fatx_compatible(orig_name)
+        final_name = new_dir_name if needs_rename else orig_name
+        new_dir_path = os.path.join(dest_parent_dir, final_name)
 
         if is_copy_mode:
             os.makedirs(new_dir_path, exist_ok=True)
-        elif new_dir_name != os.path.basename(src_dir):
+        elif needs_rename:  # Only rename if necessary
             os.rename(src_dir, new_dir_path)
             src_dir = new_dir_path
 
@@ -357,16 +375,21 @@ class Application(tk.Frame):
             break  # Only process top level
 
     def process_file(self, src_file, dest_dir, rename_file, is_copy_mode):
+        orig_name = os.path.basename(src_file)
         new_name = (
-            make_fatx_compatible(os.path.basename(src_file), is_directory=False)
+            make_fatx_compatible(orig_name, is_directory=False)
             if rename_file
-            else os.path.basename(src_file)
+            else orig_name
         )
-        new_path = os.path.join(dest_dir, new_name)
+
+        # Only proceed with rename if the name actually needs to change
+        needs_rename = rename_file and not is_fatx_compatible(orig_name)
+        final_name = new_name if needs_rename else orig_name
+        new_path = os.path.join(dest_dir, final_name)
 
         if is_copy_mode:
             shutil.copy2(src_file, new_path)
-        elif new_name != os.path.basename(src_file):
+        elif needs_rename:  # Only rename if necessary
             os.rename(src_file, new_path)
 
         self.processed_items += 1
