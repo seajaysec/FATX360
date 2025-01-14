@@ -1,16 +1,18 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
 import os
+import re
 import shutil
 import threading
-import re
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+
 
 def is_fatx_compatible(name):
     return len(name) <= 42 and all(char.isalnum() or char in "()." for char in name)
 
+
 def make_fatx_compatible(name):
     filename, extension = os.path.splitext(name)
-    filename = re.sub(r'[^\w\s()]', '', filename)
+    filename = re.sub(r"[^\w\s()]", "", filename)
     words = filename.split()
     if words:
         camel_case_name = words[0].lower()
@@ -22,6 +24,7 @@ def make_fatx_compatible(name):
     if len(camel_case_name) > max_filename_length:
         camel_case_name = camel_case_name[:max_filename_length]
     return camel_case_name + extension
+
 
 class Application(tk.Frame):
     def __init__(self, master=None):
@@ -39,20 +42,45 @@ class Application(tk.Frame):
 
     def create_widgets(self):
         self.create_menu()
-        
+
         dir_frame = ttk.Frame(self)
         dir_frame.pack(fill=tk.X, padx=10, pady=5)
-        
+
         self.dir_entry = ttk.Entry(dir_frame)
         self.dir_entry.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        
-        self.select_dir_button = ttk.Button(dir_frame, text="Select Directory", command=self.select_directory)
+
+        self.select_dir_button = ttk.Button(
+            dir_frame, text="Select Directory", command=self.select_directory
+        )
         self.select_dir_button.pack(side=tk.RIGHT)
+
+        # Add radio button frame after dir_frame
+        self.mode_frame = ttk.LabelFrame(self, text="Operation Mode")
+        self.mode_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        self.operation_mode = tk.StringVar(value="copy")
+        self.copy_radio = ttk.Radiobutton(
+            self.mode_frame,
+            text="Copy to new directory",
+            variable=self.operation_mode,
+            value="copy",
+        )
+        self.copy_radio.pack(side=tk.LEFT, padx=5)
+
+        self.inplace_radio = ttk.Radiobutton(
+            self.mode_frame,
+            text="Modify in place",
+            variable=self.operation_mode,
+            value="inplace",
+        )
+        self.inplace_radio.pack(side=tk.LEFT, padx=5)
 
         list_frame = ttk.Frame(self)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        self.select_all_button = ttk.Button(list_frame, text="Select All", command=self.toggle_select_all)
+        self.select_all_button = ttk.Button(
+            list_frame, text="Select All", command=self.toggle_select_all
+        )
         self.select_all_button.pack(side=tk.TOP, anchor=tk.W)
 
         self.listbox = tk.Listbox(list_frame, selectmode=tk.MULTIPLE)
@@ -62,14 +90,18 @@ class Application(tk.Frame):
         options_frame.pack(fill=tk.X, padx=10, pady=5)
 
         self.top_level_var = tk.BooleanVar()
-        self.top_level_check = ttk.Checkbutton(options_frame, text="Rename top-level folders", 
-                                               variable=self.top_level_var)
+        self.top_level_check = ttk.Checkbutton(
+            options_frame, text="Rename top-level folders", variable=self.top_level_var
+        )
         self.top_level_check.pack(side=tk.TOP, anchor=tk.W)
 
         self.subfolders_var = tk.BooleanVar()
-        self.subfolders_check = ttk.Checkbutton(options_frame, text="Rename subfolders", 
-                                                variable=self.subfolders_var, 
-                                                command=self.toggle_depth_slider)
+        self.subfolders_check = ttk.Checkbutton(
+            options_frame,
+            text="Rename subfolders",
+            variable=self.subfolders_var,
+            command=self.toggle_depth_slider,
+        )
         self.subfolders_check.pack(side=tk.TOP, anchor=tk.W)
 
         # Depth slider
@@ -78,33 +110,45 @@ class Application(tk.Frame):
         self.depth_label = ttk.Label(self.depth_frame, text="Subfolder depth:")
         self.depth_label.pack(side=tk.LEFT)
         self.depth_var = tk.IntVar(value=self.max_depth)
-        self.depth_slider = ttk.Scale(self.depth_frame, from_=1, to=self.max_depth, 
-                                      orient=tk.HORIZONTAL, variable=self.depth_var, 
-                                      length=200, command=self.update_depth_label)
+        self.depth_slider = ttk.Scale(
+            self.depth_frame,
+            from_=1,
+            to=self.max_depth,
+            orient=tk.HORIZONTAL,
+            variable=self.depth_var,
+            length=200,
+            command=self.update_depth_label,
+        )
         self.depth_slider.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.depth_value_label = ttk.Label(self.depth_frame, text=str(self.max_depth))
         self.depth_value_label.pack(side=tk.LEFT)
         self.depth_frame.pack_forget()  # Initially hidden
 
         self.files_var = tk.BooleanVar()
-        self.files_check = ttk.Checkbutton(options_frame, text="Rename files", 
-                                           variable=self.files_var)
+        self.files_check = ttk.Checkbutton(
+            options_frame, text="Rename files", variable=self.files_var
+        )
         self.files_check.pack(side=tk.TOP, anchor=tk.W)
 
-        self.rename_button = ttk.Button(options_frame, text="Rename Selected", 
-                                        command=self.rename_selected)
+        self.rename_button = ttk.Button(
+            options_frame, text="Rename Selected", command=self.rename_selected
+        )
         self.rename_button.pack(side=tk.TOP, pady=5)
 
         progress_frame = ttk.Frame(self)
         progress_frame.pack(fill=tk.X, padx=10, pady=5)
 
-        self.progress = ttk.Progressbar(progress_frame, orient=tk.HORIZONTAL, length=100, mode='determinate')
+        self.progress = ttk.Progressbar(
+            progress_frame, orient=tk.HORIZONTAL, length=100, mode="determinate"
+        )
         self.progress.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self.progress_label = ttk.Label(progress_frame, text="0 / 0")
         self.progress_label.pack(side=tk.RIGHT)
 
-        self.cancel_button = ttk.Button(self, text="Cancel", command=self.cancel_operation, state=tk.DISABLED)
+        self.cancel_button = ttk.Button(
+            self, text="Cancel", command=self.cancel_operation, state=tk.DISABLED
+        )
         self.cancel_button.pack(pady=5)
 
     def create_menu(self):
@@ -130,9 +174,13 @@ class Application(tk.Frame):
             self.all_selected = False
             self.select_all_button.config(text="Select All")
         except PermissionError:
-            messagebox.showerror("Permission Error", "Cannot access the selected directory.")
+            messagebox.showerror(
+                "Permission Error", "Cannot access the selected directory."
+            )
         except FileNotFoundError:
-            messagebox.showerror("Directory Not Found", "The selected directory does not exist.")
+            messagebox.showerror(
+                "Directory Not Found", "The selected directory does not exist."
+            )
 
     def toggle_select_all(self):
         if self.all_selected:
@@ -159,20 +207,33 @@ class Application(tk.Frame):
             messagebox.showwarning("No Selection", "Please select items to rename.")
             return
 
-        dest_dir = filedialog.askdirectory(title="Select Destination Folder for Renamed Items")
-        if not dest_dir:
-            return
+        # Ask for confirmation if modifying in place
+        if self.operation_mode.get() == "inplace":
+            if not messagebox.askyesno(
+                "Confirm Operation",
+                "This will modify the files in place. Are you sure you want to continue?",
+            ):
+                return
+            dest_dir = self.directory
+        else:
+            dest_dir = filedialog.askdirectory(
+                title="Select Destination Folder for Renamed Items"
+            )
+            if not dest_dir:
+                return
 
-        self.progress['value'] = 0
-        self.rename_button['state'] = 'disabled'
-        self.cancel_button['state'] = 'normal'
+        self.progress["value"] = 0
+        self.rename_button["state"] = "disabled"
+        self.cancel_button["state"] = "normal"
         self.cancel_flag = False
 
         self.total_items = self.count_total_items(selected_items)
         self.processed_items = 0
         self.update_progress_label()
 
-        thread = threading.Thread(target=self.rename_items_thread, args=(selected_items, dest_dir))
+        thread = threading.Thread(
+            target=self.rename_items_thread, args=(selected_items, dest_dir)
+        )
         thread.start()
 
     def count_total_items(self, items):
@@ -187,23 +248,39 @@ class Application(tk.Frame):
         return total
 
     def rename_items_thread(self, items, dest_dir):
-        renamed_dir = os.path.join(dest_dir, "RENAMED")
-        try:
-            os.makedirs(renamed_dir, exist_ok=True)
-        except PermissionError:
-            self.show_error("Permission Error", "Cannot create the RENAMED directory.")
-            self.finish_operation()
-            return
+        is_copy_mode = self.operation_mode.get() == "copy"
+
+        if is_copy_mode:
+            renamed_dir = os.path.join(dest_dir, "RENAMED")
+            try:
+                os.makedirs(renamed_dir, exist_ok=True)
+            except PermissionError:
+                self.show_error(
+                    "Permission Error", "Cannot create the RENAMED directory."
+                )
+                self.finish_operation()
+                return
+        else:
+            renamed_dir = dest_dir
 
         for item in items:
             if self.cancel_flag:
-                return  # Exit the loop if cancelled
+                return
             try:
                 full_path = os.path.join(self.directory, item)
                 if os.path.isdir(full_path):
-                    self.process_directory(full_path, renamed_dir, self.top_level_var.get(), self.subfolders_var.get(), self.files_var.get())
+                    self.process_directory(
+                        full_path,
+                        renamed_dir,
+                        self.top_level_var.get(),
+                        self.subfolders_var.get(),
+                        self.files_var.get(),
+                        is_copy_mode,
+                    )
                 else:
-                    self.process_file(full_path, renamed_dir, self.files_var.get())
+                    self.process_file(
+                        full_path, renamed_dir, self.files_var.get(), is_copy_mode
+                    )
             except PermissionError:
                 self.show_error("Permission Error", f"Cannot access {item}.")
             except shutil.Error as e:
@@ -212,50 +289,87 @@ class Application(tk.Frame):
                 self.show_error("OS Error", f"Error processing {item}: {str(e)}")
 
         if not self.cancel_flag:
-            self.show_success("Rename Complete", "Selected items have been renamed and copied to the RENAMED folder.")
+            msg = (
+                "Selected items have been renamed and copied to the RENAMED folder."
+                if is_copy_mode
+                else "Selected items have been renamed in place."
+            )
+            self.show_success("Rename Complete", msg)
         self.finish_operation()
 
-    def process_directory(self, src_dir, dest_parent_dir, rename_top_level, rename_subfolders, rename_files, current_depth=0):
-        new_dir_name = make_fatx_compatible(os.path.basename(src_dir)) if rename_top_level or (rename_subfolders and current_depth < self.depth_var.get()) else os.path.basename(src_dir)
+    def process_directory(
+        self,
+        src_dir,
+        dest_parent_dir,
+        rename_top_level,
+        rename_subfolders,
+        rename_files,
+        is_copy_mode,
+        current_depth=0,
+    ):
+        new_dir_name = (
+            make_fatx_compatible(os.path.basename(src_dir))
+            if rename_top_level
+            or (rename_subfolders and current_depth < self.depth_var.get())
+            else os.path.basename(src_dir)
+        )
         new_dir_path = os.path.join(dest_parent_dir, new_dir_name)
-        os.makedirs(new_dir_path, exist_ok=True)
+
+        if is_copy_mode:
+            os.makedirs(new_dir_path, exist_ok=True)
+        elif new_dir_name != os.path.basename(src_dir):
+            os.rename(src_dir, new_dir_path)
+            src_dir = new_dir_path
 
         for root, dirs, files in os.walk(src_dir):
             if self.cancel_flag:
                 return
             rel_path = os.path.relpath(root, src_dir)
-            new_root = os.path.join(new_dir_path, rel_path)
+            new_root = os.path.join(
+                new_dir_path if is_copy_mode else dest_parent_dir, rel_path
+            )
 
-            # Rename subfolders if option is selected and within depth
-            if rename_subfolders and current_depth < self.depth_var.get() and root != src_dir:
-                new_root = os.path.join(os.path.dirname(new_root), make_fatx_compatible(os.path.basename(root)))
+            if (
+                rename_subfolders
+                and current_depth < self.depth_var.get()
+                and root != src_dir
+            ):
+                new_name = make_fatx_compatible(os.path.basename(root))
+                if new_name != os.path.basename(root):
+                    new_root = os.path.join(os.path.dirname(new_root), new_name)
+                    if not is_copy_mode:
+                        os.rename(root, new_root)
 
-            os.makedirs(new_root, exist_ok=True)
+            if is_copy_mode:
+                os.makedirs(new_root, exist_ok=True)
 
             for file in files:
                 if self.cancel_flag:
                     return
                 src_file = os.path.join(root, file)
-                self.process_file(src_file, new_root, rename_files)
+                self.process_file(src_file, new_root, rename_files, is_copy_mode)
 
-            # Process subdirectories
-            for dir_name in dirs:
-                full_dir_path = os.path.join(root, dir_name)
-                self.process_directory(full_dir_path, new_root, False, rename_subfolders, rename_files, current_depth + 1)
+            break  # Only process top level
 
-            # We only want to process the top-level of this directory, so break the loop
-            break
-
-    def process_file(self, src_file, dest_dir, rename_file):
-        new_name = make_fatx_compatible(os.path.basename(src_file)) if rename_file else os.path.basename(src_file)
+    def process_file(self, src_file, dest_dir, rename_file, is_copy_mode):
+        new_name = (
+            make_fatx_compatible(os.path.basename(src_file))
+            if rename_file
+            else os.path.basename(src_file)
+        )
         new_path = os.path.join(dest_dir, new_name)
-        shutil.copy2(src_file, new_path)
+
+        if is_copy_mode:
+            shutil.copy2(src_file, new_path)
+        elif new_name != os.path.basename(src_file):
+            os.rename(src_file, new_path)
+
         self.processed_items += 1
         self.update_progress()
 
     def update_progress(self):
         progress_value = (self.processed_items / self.total_items) * 100
-        self.progress['value'] = progress_value
+        self.progress["value"] = progress_value
         self.update_progress_label()
 
     def update_progress_label(self):
@@ -263,38 +377,38 @@ class Application(tk.Frame):
 
     def cancel_operation(self):
         self.cancel_flag = True
-        self.cancel_button['state'] = 'disabled'
+        self.cancel_button["state"] = "disabled"
         self.show_info("Operation Cancelled", "The renaming operation was cancelled.")
         self.reset_interface()
 
     def finish_operation(self):
-        self.rename_button['state'] = 'normal'
-        self.cancel_button['state'] = 'disabled'
+        self.rename_button["state"] = "normal"
+        self.cancel_button["state"] = "disabled"
         self.cancel_flag = False
         self.reset_interface()
 
     def reset_interface(self):
         # Reset progress bar
-        self.progress['value'] = 0
+        self.progress["value"] = 0
         self.progress_label.config(text="0 / 0")
-        
+
         # Reset selection
         self.listbox.selection_clear(0, tk.END)
         self.all_selected = False
         self.select_all_button.config(text="Select All")
-        
+
         # Reset checkboxes
         self.top_level_var.set(False)
         self.subfolders_var.set(False)
         self.files_var.set(False)
-        
+
         # Hide depth slider
         self.depth_frame.pack_forget()
-        
+
         # Reset depth slider value
         self.depth_var.set(self.max_depth)
         self.update_depth_label()
-        
+
         # Reset counters
         self.total_items = 0
         self.processed_items = 0
@@ -307,6 +421,7 @@ class Application(tk.Frame):
 
     def show_info(self, title, message):
         self.master.after(0, lambda: messagebox.showinfo(title, message))
+
 
 root = tk.Tk()
 app = Application(master=root)
