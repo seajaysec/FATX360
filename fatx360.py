@@ -504,6 +504,10 @@ class Application(tk.Frame):
         current_depth=0,
     ):
         try:
+            # Skip hidden directories
+            if os.path.basename(src_dir).startswith("."):
+                return
+
             # First check if renaming is actually needed
             orig_name = os.path.basename(src_dir)
             new_dir_name = (
@@ -514,7 +518,7 @@ class Application(tk.Frame):
             )
 
             # Only use the new name if it's different and needs to be changed
-            needs_rename = not is_fatx_compatible(orig_name)
+            needs_rename = rename_top_level and not is_fatx_compatible(orig_name)
             final_name = new_dir_name if needs_rename else orig_name
             new_dir_path = os.path.join(dest_parent_dir, final_name)
 
@@ -531,6 +535,11 @@ class Application(tk.Frame):
                 for root, dirs, files in os.walk(src_dir):
                     if self.cancel_flag:
                         return
+
+                    # Skip hidden directories
+                    dirs[:] = [d for d in dirs if not d.startswith(".")]
+                    # Skip hidden files
+                    files = [f for f in files if not f.startswith(".")]
 
                     rel_path = os.path.relpath(root, src_dir)
                     new_root = os.path.join(
@@ -583,6 +592,10 @@ class Application(tk.Frame):
             self.show_error("Directory Processing Error", str(e))
 
     def process_file(self, src_file, dest_dir, rename_file, is_copy_mode):
+        # Skip hidden files
+        if os.path.basename(src_file).startswith("."):
+            return
+
         orig_name = os.path.basename(src_file)
         new_name = (
             make_fatx_compatible(orig_name, is_directory=False)
@@ -592,21 +605,24 @@ class Application(tk.Frame):
 
         # Only proceed with rename if the name actually needs to change
         needs_rename = rename_file and not is_fatx_compatible(orig_name)
-        final_name = new_name if needs_rename else orig_name
-        new_path = os.path.join(dest_dir, final_name)
+        if needs_rename:
+            final_name = new_name
+            new_path = os.path.join(dest_dir, final_name)
 
-        if is_copy_mode:
+            if is_copy_mode:
+                shutil.copy2(src_file, new_path)
+            else:
+                os.rename(src_file, new_path)
+
+            self.log_operation(f"File: {orig_name} → {final_name}")
+        elif is_copy_mode:
+            # In copy mode, copy even if no rename needed
+            new_path = os.path.join(dest_dir, orig_name)
             shutil.copy2(src_file, new_path)
-        elif needs_rename:  # Only rename if necessary
-            os.rename(src_file, new_path)
+            self.log_operation(f"Copying: {orig_name}")
 
         self.processed_items += 1
         self.update_progress()
-
-        if needs_rename:
-            self.log_operation(f"File: {orig_name} → {final_name}")
-        elif is_copy_mode:
-            self.log_operation(f"Copying: {orig_name}")
 
     def update_progress(self):
         progress_value = (self.processed_items / self.total_items) * 100
